@@ -1,98 +1,88 @@
 #!/bin/bash
 
-# --- 1. CONFIGURAÇÃO DO REPOSITÓRIO OFICIAL ---
-# Link direto para os arquivos brutos do seu repositório
-REPO_RAW_URL="https://raw.githubusercontent.com/antonio-leonardo/NSLinuxFiles/main"
+# --- 1. AVISO LEGAL E CONFIRMAÇÃO ---
+echo -e "\033[0;31m"
+echo "****************************************************"
+echo "   ATENÇÃO: AVISO DE SEGURANÇA E RESPONSABILIDADE"
+echo "****************************************************"
+echo -e "\033[0m"
+echo "Este script aplicará Overclock Máximo (1785MHz CPU / 921MHz GPU)."
+echo "Isso pode reduzir a vida útil da bateria e do console."
+echo ""
+echo "PREMISSA: Você deve estar rodando o L4T Linux Jammy 22.04 oficial."
+echo "LINK: https://wiki.switchroot.org/wiki/linux/l4t-ubuntu-jammy-installation-guide"
+echo ""
+echo "TUDO O QUE VOCÊ FIZER É POR SUA CONTA E RISCO."
+echo "O autor não se responsabiliza por danos ao seu Nintendo Switch."
+echo ""
+read -p "Você aceita os termos e deseja prosseguir? (s/n): " confirm
 
-# --- 2. CAPTURA DINÂMICA DE CONTEXTO ---
-# Detecta o usuário que iniciou a sessão (mesmo via sudo)
+if [[ $confirm != [sS] ]]; then
+    echo "Instalação cancelada pelo usuário."
+    exit 1
+fi
+
+# --- 2. CONFIGURAÇÃO DO REPOSITÓRIO E CONTEXTO ---
+REPO_RAW_URL="https://raw.githubusercontent.com/antonio-leonardo/NSLinuxFiles/main"
 REAL_USER=${SUDO_USER:-$(whoami)}
-# Obtém o caminho absoluto da HOME do usuário
 REAL_HOME=$(eval echo "~$REAL_USER")
 
-# Cores para o terminal (Interface do usuário)
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-echo -e "${BLUE}====================================================${NC}"
-echo -e "${GREEN}   NSLinuxFiles - Instalador Oficial (Switch)${NC}"
-echo -e "${BLUE}   Repositório: github.com/antonio-leonardo/NSLinuxFiles${NC}"
-echo -e "${BLUE}   Instalando para: ${NC}$REAL_USER"
-echo -e "${BLUE}====================================================${NC}"
-
 # --- PASSO 0: DEPENDÊNCIAS (FLATPAK & DOLPHIN) ---
-# Garante que o ambiente de execução esteja pronto com o ID oficial.
-echo -e "${BLUE}[0/6] Verificando Flatpak e Dolphin (org.DolphinEmu.dolphin-emu)...${NC}"
+# Instala o Dolphin oficial: org.DolphinEmu.dolphin-emu.
+echo -e "\033[0;34m[0/6] Instalando dependências e Dolphin oficial...\033[0m"
 if ! command -v flatpak &> /dev/null; then
     sudo apt update && sudo apt install -y flatpak
 fi
 sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-# Instalando o emulador oficial via Flathub.
 sudo flatpak install -y flathub org.DolphinEmu.dolphin-emu
 
 # --- PASSO 1: CONFIGURAÇÃO DE SWAP (4GB) ---
-# Previne falhas de memória (OOM) no Tegra X1 durante a emulação[cite: 1].
+# Garante estabilidade para evitar fechamentos inesperados.
 if [ ! -f /swapfile ]; then
-    echo -e "${BLUE}[1/6] Criando arquivo de SWAP de 4GB...${NC}"
+    echo -e "\033[0;34m[1/6] Configurando SWAP de 4GB...\033[0m"
     sudo fallocate -l 4G /swapfile
     sudo chmod 600 /swapfile
     sudo mkswap /swapfile
     sudo swapon /swapfile
     echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab > /dev/null
-else
-    echo -e "${GREEN}[1/6] SWAP de 4GB já configurado.${NC}"
 fi
 
-# --- PASSO 2: DOWNLOAD DOS SCRIPTS DE PERFORMANCE ---
-# Baixa as ferramentas de overclock e gestão de cache.
-echo -e "${BLUE}[2/6] Baixando scripts do repositório remoto...${NC}"
+# --- PASSO 2: DOWNLOAD DOS SCRIPTS ---
+# Baixa as ferramentas de Extreme Lock (1785/921/1600) e Sincronização[cite: 1, 2].
+echo -e "\033[0;34m[2/6] Baixando scripts de performance...\033[0m"
 mkdir -p "$REAL_HOME/dolphin_shader_backup"
-
-# Download do script de Extreme Lock (1785MHz/921MHz/1600MHz)[cite: 1].
 curl -sSL "$REPO_RAW_URL/scripts/dolphin_boost.sh" -o "$REAL_HOME/dolphin_boost.sh"
-# Download do utilitário de persistência de shaders[cite: 2].
 curl -sSL "$REPO_RAW_URL/scripts/sync_dolphin_cache.sh" -o "$REAL_HOME/sync_dolphin_cache.sh"
-
-chown "$REAL_USER:$REAL_USER" "$REAL_HOME/dolphin_boost.sh" "$REAL_HOME/sync_dolphin_cache.sh"
 chmod +x "$REAL_HOME/dolphin_boost.sh"[cite: 1]
 chmod +x "$REAL_HOME/sync_dolphin_cache.sh"[cite: 2]
 
-# --- PASSO 3: SUDOERS BYPASS (UM CLIQUE) ---
-# Autoriza o script de boost a alterar o hardware sem pedir senha[cite: 1].
-echo -e "${BLUE}[3/6] Aplicando bypass de senha para o Overclock...${NC}"
+# --- PASSO 3: SUDOERS BYPASS ---
+# Autoriza a mudança de clocks sem interrupção de senha[cite: 1].
+echo -e "\033[0;34m[3/6] Configurando bypass de senha para o Overclock...\033[0m"
 SUDO_FILE="/etc/sudoers.d/dolphin-boost"
 echo "$REAL_USER ALL=(ALL) NOPASSWD: $REAL_HOME/dolphin_boost.sh" | sudo tee "$SUDO_FILE" > /dev/null
 sudo chmod 0440 "$SUDO_FILE"
 
 # --- PASSO 4: CONFIGURAÇÃO DE CONTROLES (X11) ---
-# Baixa o mapeamento para Mobapad Force e Joy-Cons.
-echo -e "${BLUE}[4/6] Configurando drivers de Joystick/Mouse (Xorg)...${NC}"
+# Habilita suporte para Mobapad Force e Joy-Cons como mouse/teclado[cite: 1, 3].
+echo -e "\033[0;34m[4/6] Aplicando mapeamento de Joystick (Xorg)...\033[0m"
 sudo mkdir -p /usr/share/X11/xorg.conf.d/
 sudo curl -sSL "$REPO_RAW_URL/configs/50-joystick.conf" -o /usr/share/X11/xorg.conf.d/50-joystick.conf[cite: 3]
 
 # --- PASSO 5: ATALHO DE ÁREA DE TRABALHO ---
-# Cria o gatilho visual para facilitar a execução pelo usuário leigo[cite: 1].
-echo -e "${BLUE}[5/6] Criando ícone 'Dolphin Turbo' no Desktop...${NC}"
+# Cria o gatilho para o modo Turbo no Desktop[cite: 1].
 DESKTOP_DIR="$REAL_HOME/Desktop"
 [ ! -d "$DESKTOP_DIR" ] && DESKTOP_DIR="$REAL_HOME/Área de Trabalho"
-
 cat <<EOF > "$DESKTOP_DIR/Dolphin_Turbo.desktop"
 [Desktop Entry]
 Type=Application
 Name=Dolphin Turbo (OC)
-Comment=Inicia com Overclock Máximo (NSLinuxFiles)
+Comment=Extreme Performance: 1.7GHz CPU | 921MHz GPU
 Exec=sudo $REAL_HOME/dolphin_boost.sh
 Icon=org.DolphinEmu.dolphin-emu
 Terminal=true
 Categories=Game;Emulator;
 EOF
-chown "$REAL_USER:$REAL_USER" "$DESKTOP_DIR/Dolphin_Turbo.desktop"
 chmod +x "$DESKTOP_DIR/Dolphin_Turbo.desktop"
 
-# --- PASSO 6: CONCLUSÃO ---
-echo -e "${GREEN}====================================================${NC}"
-echo -e "${GREEN}   INSTALAÇÃO CONCLUÍDA!${NC}"
-echo -e "   Repositório: github.com/antonio-leonardo/NSLinuxFiles"
-echo -e "   Reinicie o seu Switch e use o ícone na Área de Trabalho."
-echo -e "${GREEN}====================================================${NC}"
+echo -e "\033[0;32mINSTALAÇÃO CONCLUÍDA! Reinicie o Switch para ativar os drivers.\033[0m"
