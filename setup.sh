@@ -1,112 +1,98 @@
 #!/bin/bash
 
-# --- 1. CAPTURA DINÂMICA DE CONTEXTO ---
-# Detecta o usuário real (quem invocou o script) e seu diretório HOME
+# --- 1. CONFIGURAÇÃO DO REPOSITÓRIO OFICIAL ---
+# Link direto para os arquivos brutos do seu repositório
+REPO_RAW_URL="https://raw.githubusercontent.com/antonio-leonardo/NSLinuxFiles/main"
+
+# --- 2. CAPTURA DINÂMICA DE CONTEXTO ---
+# Detecta o usuário que iniciou a sessão (mesmo via sudo)
 REAL_USER=${SUDO_USER:-$(whoami)}
+# Obtém o caminho absoluto da HOME do usuário
 REAL_HOME=$(eval echo "~$REAL_USER")
 
-# Cores para o terminal (UX/Interface)
+# Cores para o terminal (Interface do usuário)
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
 NC='\033[0m'
 
 echo -e "${BLUE}====================================================${NC}"
-echo -e "${GREEN}   NSLinuxFiles - Automação Extreme Performance${NC}"
-echo -e "${BLUE}   Usuário Detectado: ${NC}$REAL_USER"
-echo -e "${BLUE}   Diretório Alvo:    ${NC}$REAL_HOME"
+echo -e "${GREEN}   NSLinuxFiles - Instalador Oficial (Switch)${NC}"
+echo -e "${BLUE}   Repositório: github.com/antonio-leonardo/NSLinuxFiles${NC}"
+echo -e "${BLUE}   Instalando para: ${NC}$REAL_USER"
 echo -e "${BLUE}====================================================${NC}"
 
 # --- PASSO 0: DEPENDÊNCIAS (FLATPAK & DOLPHIN) ---
-# Garante que o ambiente de execução esteja pronto.
-echo -e "${BLUE}[0/6] Verificando dependências: Flatpak e Dolphin...${NC}"
-
-# Instala o gerenciador flatpak se necessário
+# Garante que o ambiente de execução esteja pronto com o ID oficial.
+echo -e "${BLUE}[0/6] Verificando Flatpak e Dolphin (org.DolphinEmu.dolphin-emu)...${NC}"
 if ! command -v flatpak &> /dev/null; then
-    echo "Instalando gerenciador Flatpak..."
     sudo apt update && sudo apt install -y flatpak
 fi
-
-# Adiciona o repositório Flathub
 sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-
-# Instala o Dolphin Emulator oficial via Flathub
-if ! flatpak list | grep -q "org.DolphinEmu.dolphin-emu"; then
-    echo "Instalando Dolphin Emulator (org.DolphinEmu.dolphin-emu)..."
-    sudo flatpak install -y flathub org.DolphinEmu.dolphin-emu
-else
-    echo -e "${GREEN}Dolphin já está instalado.${NC}"
-fi
+# Instalando o emulador oficial via Flathub.
+sudo flatpak install -y flathub org.DolphinEmu.dolphin-emu
 
 # --- PASSO 1: CONFIGURAÇÃO DE SWAP (4GB) ---
-# Essencial para evitar crashes devido à limitação de 4GB RAM física do Switch.
+# Previne falhas de memória (OOM) no Tegra X1 durante a emulação[cite: 1].
 if [ ! -f /swapfile ]; then
-    echo -e "${BLUE}[1/6] Configurando SWAP de 4GB...${NC}"
+    echo -e "${BLUE}[1/6] Criando arquivo de SWAP de 4GB...${NC}"
     sudo fallocate -l 4G /swapfile
     sudo chmod 600 /swapfile
     sudo mkswap /swapfile
     sudo swapon /swapfile
     echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab > /dev/null
 else
-    echo -e "${GREEN}[1/6] SWAP já configurado.${NC}"
+    echo -e "${GREEN}[1/6] SWAP de 4GB já configurado.${NC}"
 fi
 
-# --- PASSO 2: INSTALAÇÃO DOS SCRIPTS ---
-# Move os scripts para a HOME e garante permissão de execução.
-echo -e "${BLUE}[2/6] Implantando scripts de performance...${NC}"
-
-# Cria pasta de backup de shaders se não existir[cite: 1, 2]
+# --- PASSO 2: DOWNLOAD DOS SCRIPTS DE PERFORMANCE ---
+# Baixa as ferramentas de overclock e gestão de cache.
+echo -e "${BLUE}[2/6] Baixando scripts do repositório remoto...${NC}"
 mkdir -p "$REAL_HOME/dolphin_shader_backup"
 
-# Copia os arquivos da estrutura do repositório para o sistema real
-# Ajuste o caminho de origem conforme a estrutura do seu GitHub
-cp home/antonioleonardo/dolphin_boost.sh "$REAL_HOME/dolphin_boost.sh"
-cp home/antonioleonardo/sync_dolphin_cache.sh "$REAL_HOME/sync_dolphin_cache.sh"
+# Download do script de Extreme Lock (1785MHz/921MHz/1600MHz)[cite: 1].
+curl -sSL "$REPO_RAW_URL/scripts/dolphin_boost.sh" -o "$REAL_HOME/dolphin_boost.sh"
+# Download do utilitário de persistência de shaders[cite: 2].
+curl -sSL "$REPO_RAW_URL/scripts/sync_dolphin_cache.sh" -o "$REAL_HOME/sync_dolphin_cache.sh"
 
 chown "$REAL_USER:$REAL_USER" "$REAL_HOME/dolphin_boost.sh" "$REAL_HOME/sync_dolphin_cache.sh"
-chmod +x "$REAL_HOME/dolphin_boost.sh"
+chmod +x "$REAL_HOME/dolphin_boost.sh"[cite: 1]
 chmod +x "$REAL_HOME/sync_dolphin_cache.sh"[cite: 2]
 
-# --- PASSO 3: CONFIGURAÇÃO DO SUDOERS (BYPASS) ---
-# Permite ao script travar frequências de hardware sem pedir senha[cite: 1].
-echo -e "${BLUE}[3/6] Configurando bypass de privilégios para Overclock...${NC}"
+# --- PASSO 3: SUDOERS BYPASS (UM CLIQUE) ---
+# Autoriza o script de boost a alterar o hardware sem pedir senha[cite: 1].
+echo -e "${BLUE}[3/6] Aplicando bypass de senha para o Overclock...${NC}"
 SUDO_FILE="/etc/sudoers.d/dolphin-boost"
 echo "$REAL_USER ALL=(ALL) NOPASSWD: $REAL_HOME/dolphin_boost.sh" | sudo tee "$SUDO_FILE" > /dev/null
 sudo chmod 0440 "$SUDO_FILE"
 
 # --- PASSO 4: CONFIGURAÇÃO DE CONTROLES (X11) ---
-# Aplica o mapeamento para Joy-Cons e Mobapad Force.
-echo -e "${BLUE}[4/6] Aplicando drivers de controle (Xorg)...${NC}"
+# Baixa o mapeamento para Mobapad Force e Joy-Cons.
+echo -e "${BLUE}[4/6] Configurando drivers de Joystick/Mouse (Xorg)...${NC}"
 sudo mkdir -p /usr/share/X11/xorg.conf.d/
-sudo cp usr/share/X11/xorg.conf.d/50-joystick.conf /usr/share/X11/xorg.conf.d/[cite: 3]
+sudo curl -sSL "$REPO_RAW_URL/configs/50-joystick.conf" -o /usr/share/X11/xorg.conf.d/50-joystick.conf[cite: 3]
 
 # --- PASSO 5: ATALHO DE ÁREA DE TRABALHO ---
-# Cria o ícone de gatilho para o modo Turbo[cite: 1].
-echo -e "${BLUE}[5/6] Criando atalho Dolphin Turbo na Área de Trabalho...${NC}"
-# Detecta se a pasta se chama Desktop ou Área de Trabalho
+# Cria o gatilho visual para facilitar a execução pelo usuário leigo[cite: 1].
+echo -e "${BLUE}[5/6] Criando ícone 'Dolphin Turbo' no Desktop...${NC}"
 DESKTOP_DIR="$REAL_HOME/Desktop"
-if [ ! -d "$DESKTOP_DIR" ] && [ -d "$REAL_HOME/Área de Trabalho" ]; then
-    DESKTOP_DIR="$REAL_HOME/Área de Trabalho"
-fi
+[ ! -d "$DESKTOP_DIR" ] && DESKTOP_DIR="$REAL_HOME/Área de Trabalho"
 
 cat <<EOF > "$DESKTOP_DIR/Dolphin_Turbo.desktop"
 [Desktop Entry]
 Type=Application
 Name=Dolphin Turbo (OC)
-Comment=Performance Máxima: CPU 1.7GHz | GPU 921MHz
+Comment=Inicia com Overclock Máximo (NSLinuxFiles)
 Exec=sudo $REAL_HOME/dolphin_boost.sh
 Icon=org.DolphinEmu.dolphin-emu
 Terminal=true
 Categories=Game;Emulator;
 EOF
-
 chown "$REAL_USER:$REAL_USER" "$DESKTOP_DIR/Dolphin_Turbo.desktop"
 chmod +x "$DESKTOP_DIR/Dolphin_Turbo.desktop"
 
-# --- PASSO 6: LIMPEZA E FINALIZAÇÃO ---
+# --- PASSO 6: CONCLUSÃO ---
 echo -e "${GREEN}====================================================${NC}"
-echo -e "${GREEN}   INSTALAÇÃO CONCLUÍDA COM SUCESSO!${NC}"
-echo -e "   1. Reinicie o console para ativar os drivers de controle."
-echo -e "   2. Inicie o Dolphin uma vez para criar as pastas de perfil."
-echo -e "   3. Use o ícone 'Dolphin Turbo' para jogar com Overclock."
+echo -e "${GREEN}   INSTALAÇÃO CONCLUÍDA!${NC}"
+echo -e "   Repositório: github.com/antonio-leonardo/NSLinuxFiles"
+echo -e "   Reinicie o seu Switch e use o ícone na Área de Trabalho."
 echo -e "${GREEN}====================================================${NC}"
