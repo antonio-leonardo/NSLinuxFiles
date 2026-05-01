@@ -31,4 +31,4 @@ Para que o setup funcione corretamente, você deve cumprir os seguintes requisit
 Abra o terminal no seu Switch e cole o comando abaixo para iniciar o instalador automatizado:
 
 ```bash
-curl -sSL [https://raw.githubusercontent.com/antonio-leonardo/NSLinuxFiles/main/setup.sh](https://raw.githubusercontent.com/antonio-leonardo/NSLinuxFiles/main/setup.sh) | bash
+curl -sSL https://raw.githubusercontent.com/antonio-leonardo/NSLinuxFiles/main/setup.sh | bash
