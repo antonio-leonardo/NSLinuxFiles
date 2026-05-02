@@ -56,9 +56,11 @@ fi
 # Baixa as ferramentas de Extreme Lock (1785/921/1600) e Sincronização.
 echo -e "\033[0;34m[2/6] Baixando scripts de performance...\033[0m"
 mkdir -p "$REAL_HOME/dolphin_shader_backup"
-curl -sSL "$REPO_RAW_URL/scripts/dolphin_boost.sh" -o /tmp/dolphin_boost.sh || { echo "ERRO: falha no download de dolphin_boost.sh. Verifique sua conexão."; exit 1; }
-curl -sSL "$REPO_RAW_URL/scripts/sync_dolphin_cache.sh" -o "$REAL_HOME/sync_dolphin_cache.sh" || { echo "ERRO: falha no download de sync_dolphin_cache.sh. Verifique sua conexão."; exit 1; }
-sudo install -o root -g root -m 0755 /tmp/dolphin_boost.sh /usr/local/sbin/dolphin-boost
+TMP_BOOST=$(mktemp /tmp/dolphin_boost.XXXXXX)
+curl -sSL "$REPO_RAW_URL/scripts/dolphin_boost.sh" -o "$TMP_BOOST" || { rm -f "$TMP_BOOST"; echo "ERRO: falha no download de dolphin_boost.sh. Verifique sua conexão."; exit 1; }
+curl -sSL "$REPO_RAW_URL/scripts/sync_dolphin_cache.sh" -o "$REAL_HOME/sync_dolphin_cache.sh" || { rm -f "$TMP_BOOST"; echo "ERRO: falha no download de sync_dolphin_cache.sh. Verifique sua conexão."; exit 1; }
+sudo install -o root -g root -m 0755 "$TMP_BOOST" /usr/local/sbin/dolphin-boost
+rm -f "$TMP_BOOST"
 chmod +x "$REAL_HOME/sync_dolphin_cache.sh"
 
 # --- PASSO 3: SUDOERS BYPASS ---

@@ -88,6 +88,21 @@ glob_paths() {
     compgen -G "$pattern" || true
 }
 
+validate_safe_path() {
+    local path="$1"
+    local label="$2"
+    local resolved
+
+    [[ "$path" == *..* ]] && die "caminho invalido para $label (traversal detectado): '$path'"
+
+    resolved=$(realpath -m "$path" 2>/dev/null || printf '%s' "$path")
+    case "$resolved" in
+        /proc/*|/sys/*|/etc/*|/dev/*|/run/*|/root/*|/bin/*|/sbin/*|/usr/*|/lib/*|/boot/*)
+            die "caminho restrito para $label: '$resolved'. Use um caminho dentro de $USER_HOME."
+            ;;
+    esac
+}
+
 save_glob() {
     local pattern=$1
     local path
@@ -346,6 +361,9 @@ monitor_thermal() {
 main() {
     local app_pid
     local app_status=0
+
+    validate_safe_path "$RAM_CACHE" "DOLPHIN_RAM_CACHE"
+    validate_safe_path "$SD_BACKUP" "DOLPHIN_SHADER_BACKUP"
 
     trap cleanup EXIT
     trap 'exit 130' INT
